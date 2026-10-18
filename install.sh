@@ -19,8 +19,6 @@ cp "$here/notify-waiting.sh" "$target"
 chmod +x "$target"
 echo "installed $target"
 
-fi
-
 if ! command -v python3 >/dev/null 2>&1; then
   cat <<EOF
 python3 was not found, so the settings were not merged. Add this to $settings by hand (inside "hooks"):
