@@ -2,9 +2,9 @@ name: check
 on:
   push:
     branches: [master]
-    paths: ['**.sh', '**.json', '.github/workflows/check.yml']
+    paths: ['**.sh', '**.json', '.github/workflows/check.yml', 'README.md']
   pull_request:
-    paths: ['**.sh', '**.json', '.github/workflows/check.yml']
+    paths: ['**.sh', '**.json', '.github/workflows/check.yml', 'README.md']
 concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck
-        run: shellcheck -S warning notify-waiting.sh install.sh
+        run: shellcheck -S warning notify-waiting.sh install.sh tests/click-target.sh
       - name: the snippet is valid JSON and names the installed path
         run: |
           python3 -c "import json; d=json.load(open('project-settings.snippet.json')); assert 'notify-waiting.sh' in d['hooks']['Notification'][0]['hooks'][0]['command']"
@@ -29,3 +29,5 @@ jobs:
                    'not json at all'; do
             printf '%s' "$p" | bash notify-waiting.sh
           done
+      - name: a click lands on the session's app and window (macOS path, stub notifier)
+        run: bash tests/click-target.sh

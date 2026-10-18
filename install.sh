@@ -19,6 +19,23 @@ cp "$here/notify-waiting.sh" "$target"
 chmod +x "$target"
 echo "installed $target"
 
+# On macOS a click on a notification needs terminal-notifier. Without it the hook falls back to
+# osascript, whose notifications macOS files under Script Editor, so a click opens Script Editor.
+# CLAUDE_NOTIFY_SKIP_BREW=1 skips this step.
+first_executable() { local c; for c in "$@"; do [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }; done; return 1; }
+if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ "${CLAUDE_NOTIFY_SKIP_BREW:-0}" != "1" ]; then
+  if tn="$(first_executable "$(command -v terminal-notifier 2>/dev/null || true)" /opt/homebrew/bin/terminal-notifier /usr/local/bin/terminal-notifier)"; then
+    echo "terminal-notifier found at $tn"
+  elif brew="$(first_executable "$(command -v brew 2>/dev/null || true)" /opt/homebrew/bin/brew /usr/local/bin/brew)"; then
+    echo "installing terminal-notifier with Homebrew ($brew install terminal-notifier), so a click on a notification brings your editor or terminal to the front"
+    if ! "$brew" install terminal-notifier; then
+      echo "brew install terminal-notifier failed: notifications still show, but a click opens Script Editor until it is installed"
+    fi
+  else
+    echo "terminal-notifier is not installed and Homebrew was not found: notifications still show, but macOS files them under Script Editor, so a click opens Script Editor. Install terminal-notifier (brew install terminal-notifier) for clicks that bring your editor or terminal to the front."
+  fi
+fi
+
 if ! command -v python3 >/dev/null 2>&1; then
   cat <<EOF
 python3 was not found, so the settings were not merged. Add this to $settings by hand (inside "hooks"):
@@ -67,3 +84,6 @@ A notification shows when Claude waits for your permission, has waited 60 second
 a tool asks you a question, or a background agent needs you or finishes.
 Optional settings: $claude_dir/notify-waiting.conf (see README.md), for example NOTIFY_ON_STOP=1 to notify on every finished turn.
 EOF
+if [ "$(uname -s 2>/dev/null)" = "Darwin" ]; then
+  echo "On macOS the first notification asks whether terminal-notifier may show notifications: Allow it. If none appear, run terminal-notifier -diagnose."
+fi

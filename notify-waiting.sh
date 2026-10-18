@@ -6,9 +6,12 @@
 #   title: "Claude Code: <project folder>"   body: the event's message, or what the event means.
 #
 # Works in every surface that runs Claude Code with your settings (the terminal, the VS Code
-# extension, the desktop app). Dependency-free: macOS uses terminal-notifier when installed
-# (click brings the app forward), else osascript; Linux uses notify-send; Windows (Git Bash,
-# WSL with a Windows host) uses a PowerShell toast. No notifier found: exit 0 quietly.
+# extension, the desktop app). macOS uses terminal-notifier when installed: a click brings the app
+# the session runs in to the front, and for VS Code the window that holds the session's folder.
+# Without it macOS falls back to osascript, whose notifications macOS files under Script Editor, so
+# a click on one opens Script Editor (install.sh installs terminal-notifier with Homebrew). Linux
+# uses notify-send; Windows (Git Bash, WSL with a Windows host) uses a PowerShell toast. No
+# notifier found: exit 0 quietly.
 #
 # Settings file, optional: ~/.claude/notify-waiting.conf (shell variables)
 #   NOTIFY_ON_STOP=1        also notify when a turn ends (the Stop hook); default off, because a
@@ -17,7 +20,10 @@
 #   NOTIFY_SOUND=Glass      macOS sound name (default Glass); empty for silent
 #   NOTIFY_QUIET_TYPES="auth_success quota_auto_resume_fired"   types to skip (default below)
 #   NOTIFY_ACTIVATE=com.microsoft.VSCode   bundle id terminal-notifier brings forward on click
-#                           (default: the terminal or editor the session runs in, when known)
+#                           (default: the app the session runs in, from __CFBundleIdentifier, which
+#                           macOS sets for every process an app starts, then from TERM_PROGRAM)
+#   NOTIFY_FOCUS_FOLDER=0   for VS Code, bring the app forward without asking it to focus the
+#                           window that holds the session's folder (default 1)
 #
 # Exit code and output are ignored by Claude Code for Notification hooks; this script never fails
 # the event. It writes nothing to the transcript.
@@ -30,6 +36,7 @@ conf="${CLAUDE_NOTIFY_CONF:-$HOME/.claude/notify-waiting.conf}"
 NOTIFY_ON_STOP="${NOTIFY_ON_STOP:-0}"
 NOTIFY_SOUND="${NOTIFY_SOUND-Glass}"
 NOTIFY_QUIET_TYPES="${NOTIFY_QUIET_TYPES:-auth_success elicitation_complete elicitation_response quota_auto_resume_fired}"
+NOTIFY_FOCUS_FOLDER="${NOTIFY_FOCUS_FOLDER:-1}"
 
 # One JSON field, read with python3, then jq, then a plain-text fallback.
 field() {
@@ -88,8 +95,10 @@ body="${message:-$meaning}"
 body="$(printf '%s' "$body" | tr '\n' ' ' | cut -c1-200)"
 title="Claude Code: ${project:-session}"
 
-# Where a click should land: the editor or terminal this session runs in, when it says so.
-activate="${NOTIFY_ACTIVATE:-}"
+# Where a click should land: the app this session runs in. macOS sets __CFBundleIdentifier for every
+# process an app starts (VS Code and its Claude Code extension, the desktop app, Terminal, iTerm), and
+# the VS Code extension sets no TERM_PROGRAM, so the bundle id comes first.
+activate="${NOTIFY_ACTIVATE:-${__CFBundleIdentifier:-}}"
 if [ -z "$activate" ]; then
   case "${TERM_PROGRAM:-}" in
     vscode)      activate="com.microsoft.VSCode" ;;
@@ -102,13 +111,33 @@ fi
 
 # Escape for the AppleScript string literal: backslashes and double quotes.
 as_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+# Quote one word for /bin/sh: wrap it in single quotes, each inner quote written as '\''.
+sh_quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+# terminal-notifier on PATH, or where Homebrew puts it (a hook's PATH can be shorter than a shell's).
+find_terminal_notifier() {
+  local c
+  for c in "$(command -v terminal-notifier 2>/dev/null)" /opt/homebrew/bin/terminal-notifier /usr/local/bin/terminal-notifier; do
+    [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }
+  done
+  return 1
+}
 
 notify_macos() {
-  if command -v terminal-notifier >/dev/null 2>&1; then
+  local tn
+  if tn="$(find_terminal_notifier)"; then
     set -- -title "$title" -message "$body" -group "claude-code-$project"
     [ -n "$NOTIFY_SOUND" ] && set -- "$@" -sound "$NOTIFY_SOUND"
     [ -n "$activate" ] && set -- "$@" -activate "$activate"
-    terminal-notifier "$@" >/dev/null 2>&1 &
+    # VS Code reuses and focuses the window that already holds a folder it is asked to open, so with
+    # several windows the click lands on this session's one, not on whichever was used last.
+    case "$activate" in
+      com.microsoft.VSCode|com.microsoft.VSCodeInsiders)
+        if [ "$NOTIFY_FOCUS_FOLDER" = "1" ] && [ -n "$cwd" ] && [ -d "$cwd" ]; then
+          set -- "$@" -execute "/usr/bin/open -b $(sh_quote "$activate") $(sh_quote "$cwd")"
+        fi ;;
+    esac
+    "$tn" "$@" >/dev/null 2>&1 &
     return 0
   fi
   local t b s=""
