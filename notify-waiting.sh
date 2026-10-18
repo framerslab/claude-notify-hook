@@ -129,6 +129,34 @@ find_terminal_notifier() {
   return 1
 }
 
+# The folder of the open VS Code window that holds the session: the window folder that is the session's
+# folder or its nearest parent, read from VS Code's saved window state (windowsState in its
+# storage.json). Prints nothing when focusing is off, nothing matches (a multi-root workspace, a
+# folder no window holds) or the state can't be read.
+vscode_window_folder() {
+  [ "$NOTIFY_FOCUS_FOLDER" = "1" ] && [ -n "$cwd" ] && command -v python3 >/dev/null 2>&1 || return 0
+  local state="${NOTIFY_VSCODE_STATE:-$HOME/Library/Application Support/$1/User/globalStorage/storage.json}"
+  [ -f "$state" ] || return 0
+  python3 - "$state" "$cwd" <<'PY' 2>/dev/null || true
+import json, os, sys
+from urllib.parse import unquote, urlparse
+state, cwd = sys.argv[1], os.path.realpath(sys.argv[2])
+try:
+    ws = json.load(open(state)).get("windowsState") or {}
+except Exception:
+    sys.exit(0)
+best = ""
+for w in [ws.get("lastActiveWindow") or {}] + list(ws.get("openedWindows") or []):
+    u = urlparse(w.get("folder") or "")
+    if u.scheme != "file":
+        continue
+    p = os.path.realpath(unquote(u.path))
+    if (cwd == p or cwd.startswith(p.rstrip("/") + "/")) and len(p) > len(best):
+        best = p
+print(best, end="")
+PY
+}
+
 notify_macos() {
   local tn
   if tn="$(find_terminal_notifier)"; then
@@ -136,13 +164,14 @@ notify_macos() {
     [ -n "$NOTIFY_SOUND" ] && set -- "$@" -sound "$NOTIFY_SOUND"
     [ -n "$activate" ] && set -- "$@" -activate "$activate"
     # VS Code reuses and focuses the window that already holds a folder it is asked to open, so with
-    # several windows the click lands on this session's one, not on whichever was used last.
+    # several windows the click lands on this session's one. Only that window's own folder matches, so
+    # the open goes out only when one is found; otherwise the click just brings VS Code forward.
+    local folder=""
     case "$activate" in
-      com.microsoft.VSCode|com.microsoft.VSCodeInsiders)
-        if [ "$NOTIFY_FOCUS_FOLDER" = "1" ] && [ -n "$cwd" ] && [ -d "$cwd" ]; then
-          set -- "$@" -execute "/usr/bin/open -b $(sh_quote "$activate") $(sh_quote "$cwd")"
-        fi ;;
+      com.microsoft.VSCode) folder="$(vscode_window_folder Code)" ;;
+      com.microsoft.VSCodeInsiders) folder="$(vscode_window_folder "Code - Insiders")" ;;
     esac
+    [ -n "$folder" ] && set -- "$@" -execute "/usr/bin/open -b $(sh_quote "$activate") $(sh_quote "$folder")"
     "$tn" "$@" >/dev/null 2>&1 &
     return 0
   fi

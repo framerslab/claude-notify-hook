@@ -56,6 +56,16 @@ print(f'ok [{case}]')
 PY
 }
 
+# VS Code's saved window state: one window on the session folder's parent, one elsewhere.
+state="$work/home/Library/Application Support/Code/User/globalStorage/storage.json"
+mkdir -p "$(dirname "$state")"
+python3 - "$state" "$work/demo dir" "$work/other" <<'PY'
+import json, sys
+from urllib.parse import quote
+uri = lambda p: "file://" + quote(p)
+json.dump({"windowsState": {"lastActiveWindow": {"folder": uri(sys.argv[3])},
+           "openedWindows": [{"folder": uri(sys.argv[3])}, {"folder": uri(sys.argv[2])}]}}, open(sys.argv[1], "w"))
+PY
 run "$work/vscode" __CFBundleIdentifier=com.microsoft.VSCode
 check "$work/vscode" vscode
 # The -execute command must hand open exactly three arguments, the folder whole.
@@ -65,10 +75,15 @@ CAPTURE="$work/open" sh -c "${cmd/\/usr\/bin\/open/$bin/open-stub}"
 python3 - "$work/open" "$dir" <<'PY'
 import sys
 args = [a.decode() for a in open(sys.argv[1], 'rb').read().split(b'\0')[:-1]]
-want = ['-b', 'com.microsoft.VSCode', sys.argv[2]]
+want = ['-b', 'com.microsoft.VSCode', sys.argv[2].rsplit('/', 1)[0]]  # the window's folder, the session folder's parent
 if args != want: print(f'FAIL [execute]: open got {args!r}, want {want!r}'); sys.exit(1)
 print('ok [execute]')
 PY
+
+# No open window holds the session folder: the click only brings VS Code forward.
+rm "$state"
+run "$work/nowindow" __CFBundleIdentifier=com.microsoft.VSCode
+check "$work/nowindow" nofocus
 
 run "$work/iterm" TERM_PROGRAM=iTerm.app
 check "$work/iterm" iterm
