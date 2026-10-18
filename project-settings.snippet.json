@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|agent_completed|quota_auto_resume_stale|quota_auto_resume_disabled",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c '[ -x \"$HOME/.claude/hooks/notify-waiting.sh\" ] && \"$HOME/.claude/hooks/notify-waiting.sh\" || true'",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

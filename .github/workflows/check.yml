@@ -1,0 +1,31 @@
+name: check
+on:
+  push:
+    branches: [master]
+    paths: ['**.sh', '**.json', '.github/workflows/check.yml']
+  pull_request:
+    paths: ['**.sh', '**.json', '.github/workflows/check.yml']
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -S warning notify-waiting.sh install.sh
+      - name: the snippet is valid JSON and names the installed path
+        run: |
+          python3 -c "import json; d=json.load(open('project-settings.snippet.json')); assert 'notify-waiting.sh' in d['hooks']['Notification'][0]['hooks'][0]['command']"
+      - name: the hook exits 0 on every payload and never notifies for a quiet type
+        run: |
+          set -e
+          for p in '{"hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude needs your permission","cwd":"/tmp/demo"}' \
+                   '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/demo"}' \
+                   '{"hook_event_name":"Notification","notification_type":"auth_success","message":"x","cwd":"/tmp/demo"}' \
+                   '{"hook_event_name":"Stop","stop_hook_active":false,"cwd":"/tmp/demo"}' \
+                   'not json at all'; do
+            printf '%s' "$p" | bash notify-waiting.sh
+          done
