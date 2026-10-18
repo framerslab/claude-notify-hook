@@ -19,21 +19,6 @@ cp "$here/notify-waiting.sh" "$target"
 chmod +x "$target"
 echo "installed $target"
 
-# On macOS a click on a notification needs terminal-notifier. Without it the hook falls back to
-# osascript, whose notifications macOS files under Script Editor, so a click opens Script Editor.
-# CLAUDE_NOTIFY_SKIP_BREW=1 skips this step.
-first_executable() { local c; for c in "$@"; do [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }; done; return 1; }
-if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ "${CLAUDE_NOTIFY_SKIP_BREW:-0}" != "1" ]; then
-  if tn="$(first_executable "$(command -v terminal-notifier 2>/dev/null || true)" /opt/homebrew/bin/terminal-notifier /usr/local/bin/terminal-notifier)"; then
-    echo "terminal-notifier found at $tn"
-  elif brew="$(first_executable "$(command -v brew 2>/dev/null || true)" /opt/homebrew/bin/brew /usr/local/bin/brew)"; then
-    echo "installing terminal-notifier with Homebrew ($brew install terminal-notifier), so a click on a notification brings your editor or terminal to the front"
-    if ! "$brew" install terminal-notifier; then
-      echo "brew install terminal-notifier failed: notifications still show, but a click opens Script Editor until it is installed"
-    fi
-  else
-    echo "terminal-notifier is not installed and Homebrew was not found: notifications still show, but macOS files them under Script Editor, so a click opens Script Editor. Install terminal-notifier (brew install terminal-notifier) for clicks that bring your editor or terminal to the front."
-  fi
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -77,6 +62,42 @@ else:
     print("hooks already present in", p)
 EOF
 
+# On macOS a click on a notification needs terminal-notifier. Without it the hook falls back to
+# osascript, whose notifications macOS files under Script Editor, so a click opens Script Editor.
+# This runs after the settings merge, so an installer that stops early changes nothing in Homebrew.
+# CLAUDE_NOTIFY_SKIP_BREW=1 skips it.
+first_executable() { local c; for c in "$@"; do [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }; done; return 1; }
+find_tn() { first_executable "$(command -v terminal-notifier 2>/dev/null || true)" /opt/homebrew/bin/terminal-notifier /usr/local/bin/terminal-notifier; }
+tn=""; tn_failed=0
+if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ "${CLAUDE_NOTIFY_SKIP_BREW:-0}" != "1" ]; then
+  if tn="$(find_tn)"; then
+    echo "terminal-notifier found at $tn"
+  elif brew="$(first_executable "$(command -v brew 2>/dev/null || true)" /opt/homebrew/bin/brew /usr/local/bin/brew)"; then
+    echo "installing terminal-notifier with Homebrew ($brew install terminal-notifier), so a click on a notification brings your editor or terminal to the front"
+    if "$brew" install terminal-notifier; then
+      tn="$(find_tn || first_executable "$("$brew" --prefix 2>/dev/null)/bin/terminal-notifier" || true)"
+    else
+      tn_failed=1
+      echo "brew install terminal-notifier failed: notifications still show, but a click opens Script Editor until it is installed"
+    fi
+  else
+    echo "terminal-notifier is not installed and Homebrew was not found: notifications still show, but macOS files them under Script Editor, so a click opens Script Editor. Install terminal-notifier (brew install terminal-notifier) for clicks that bring your editor or terminal to the front."
+  fi
+  # The hook looks on its own PATH and in Homebrew's two bin folders; a notifier anywhere else is
+  # written into the settings file so the hook finds it.
+  if [ -n "$tn" ]; then
+    tn_dir="$(dirname "$tn")"
+    case " /opt/homebrew/bin /usr/local/bin " in
+      *" $tn_dir "*) ;;
+      *) conf="$claude_dir/notify-waiting.conf"
+         if ! grep -q '^NOTIFY_TN_DIRS=' "$conf" 2>/dev/null; then
+           printf 'NOTIFY_TN_DIRS="%s /opt/homebrew/bin /usr/local/bin"\n' "$tn_dir" >> "$conf"
+           echo "terminal-notifier is in $tn_dir, outside the hook's default folders: added NOTIFY_TN_DIRS to $conf"
+         fi ;;
+    esac
+  fi
+fi
+
 cat <<EOF
 
 Done. New Claude Code sessions pick the hook up at once; in a session that is already open, run /hooks once to reload.
@@ -84,6 +105,9 @@ A notification shows when Claude waits for your permission, has waited 60 second
 a tool asks you a question, or a background agent needs you or finishes.
 Optional settings: $claude_dir/notify-waiting.conf (see README.md), for example NOTIFY_ON_STOP=1 to notify on every finished turn.
 EOF
-if [ "$(uname -s 2>/dev/null)" = "Darwin" ]; then
+if [ -n "$tn" ]; then
   echo "On macOS the first notification asks whether terminal-notifier may show notifications: Allow it. If none appear, run terminal-notifier -diagnose."
+fi
+if [ "$tn_failed" = "1" ]; then
+  exit 1
 fi

@@ -63,6 +63,7 @@ ntype="$(field notification_type)"
 [ -z "$ntype" ] && ntype="$(field type)"
 message="$(field message)"
 cwd="$(field cwd)"
+session="$(field session_id)"
 project="${cwd##*/}"
 [ -z "$project" ] && project="${PWD##*/}"
 
@@ -97,19 +98,23 @@ body="${message:-$meaning}"
 body="$(printf '%s' "$body" | tr '\n' ' ' | cut -c1-200)"
 title="Claude Code: ${project:-session}"
 
-# Where a click should land: the app this session runs in. macOS sets __CFBundleIdentifier for every
-# process an app starts (VS Code and its Claude Code extension, the desktop app, Terminal, iTerm), and
-# the VS Code extension sets no TERM_PROGRAM, so the bundle id comes first.
-activate="${NOTIFY_ACTIVATE:-${__CFBundleIdentifier:-}}"
+# Where a click should land: the app this session runs in. TERM_PROGRAM names the terminal a CLI
+# session runs in (VS Code's integrated terminal says vscode). The VS Code extension sets none, and
+# VSCODE_PID marks it. __CFBundleIdentifier, which macOS sets for every process an app starts, covers
+# the rest (the desktop app); it comes last because a process started from a terminal inherits it.
+vscode_id() { case "${__CFBundleIdentifier:-}" in com.microsoft.VSCode*) printf '%s' "$__CFBundleIdentifier" ;; *) printf 'com.microsoft.VSCode' ;; esac; }
+activate="${NOTIFY_ACTIVATE:-}"
 if [ -z "$activate" ]; then
   case "${TERM_PROGRAM:-}" in
-    vscode)      activate="com.microsoft.VSCode" ;;
+    vscode)      activate="$(vscode_id)" ;;
     iTerm.app)   activate="com.googlecode.iterm2" ;;
     Apple_Terminal) activate="com.apple.Terminal" ;;
     ghostty)     activate="com.mitchellh.ghostty" ;;
     WarpTerminal) activate="dev.warp.Warp-Stable" ;;
   esac
 fi
+[ -z "$activate" ] && [ -n "${VSCODE_PID:-}" ] && activate="$(vscode_id)"
+[ -z "$activate" ] && activate="${__CFBundleIdentifier:-}"
 
 # Escape for the AppleScript string literal: backslashes and double quotes.
 as_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
@@ -145,14 +150,19 @@ try:
     ws = json.load(open(state)).get("windowsState") or {}
 except Exception:
     sys.exit(0)
-best = ""
+# Compare real paths, but hand back the folder as the window holds it: VS Code matches a symlinked
+# folder by its own path. A folder name with a line break is skipped (the shell would cut it).
+best, best_len = "", -1
 for w in [ws.get("lastActiveWindow") or {}] + list(ws.get("openedWindows") or []):
     u = urlparse(w.get("folder") or "")
     if u.scheme != "file":
         continue
-    p = os.path.realpath(unquote(u.path))
-    if (cwd == p or cwd.startswith(p.rstrip("/") + "/")) and len(p) > len(best):
-        best = p
+    orig = unquote(u.path)
+    if "\n" in orig:
+        continue
+    p = os.path.realpath(orig)
+    if (cwd == p or cwd.startswith(p.rstrip("/") + "/")) and len(p) > best_len:
+        best, best_len = orig, len(p)
 print(best, end="")
 PY
 }
@@ -160,7 +170,8 @@ PY
 notify_macos() {
   local tn
   if tn="$(find_terminal_notifier)"; then
-    set -- -title "$title" -message "$body" -group "claude-code-$project"
+    # One group per session: a session's newer notification replaces its older one, never another's.
+    set -- -title "$title" -message "$body" -group "claude-code-${session:-$project}"
     [ -n "$NOTIFY_SOUND" ] && set -- "$@" -sound "$NOTIFY_SOUND"
     [ -n "$activate" ] && set -- "$@" -activate "$activate"
     # VS Code reuses and focuses the window that already holds a folder it is asked to open, so with
