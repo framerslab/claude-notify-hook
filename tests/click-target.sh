@@ -80,6 +80,10 @@ if args != want: print(f'FAIL [execute]: open got {args!r}, want {want!r}'); sys
 print('ok [execute]')
 PY
 
+# Focusing switched off: a matching window exists, and still no -execute.
+run "$work/nofocus" __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_FOCUS_FOLDER=0
+check "$work/nofocus" nofocus
+
 # No open window holds the session folder: the click only brings VS Code forward.
 rm "$state"
 run "$work/nowindow" __CFBundleIdentifier=com.microsoft.VSCode
@@ -87,9 +91,6 @@ check "$work/nowindow" nofocus
 
 run "$work/iterm" TERM_PROGRAM=iTerm.app
 check "$work/iterm" iterm
-
-run "$work/nofocus" __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_FOCUS_FOLDER=0
-check "$work/nofocus" nofocus
 
 rm "$bin/terminal-notifier"
 # NOTIFY_TN_DIRS empty: the runner may carry a terminal-notifier of its own in /usr/local/bin.

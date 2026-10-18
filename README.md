@@ -26,7 +26,7 @@ Title `Claude Code: <project folder>`, body the event's own message (for example
 
 ## What a click does on macOS
 
-With `terminal-notifier`, a click brings the app the session runs in to the front: VS Code, the Claude desktop app, Terminal or iTerm. The hook reads the app from `__CFBundleIdentifier`, which macOS sets for every process an app starts, and falls back to `TERM_PROGRAM`. For VS Code it also asks VS Code to open the session's folder, and VS Code answers that by focusing the window that already holds it, so with several windows open the click lands on this session's one.
+With `terminal-notifier`, a click brings the app the session runs in to the front: VS Code, the Claude desktop app, Terminal or iTerm. The hook reads the app from `__CFBundleIdentifier`, which macOS sets for every process an app starts, and falls back to `TERM_PROGRAM`. For VS Code it also finds the open window that holds the session's folder, or its nearest parent folder, in VS Code's saved window state (`windowsState` in `~/Library/Application Support/Code/User/globalStorage/storage.json`) and asks VS Code to open that window's folder. VS Code answers by focusing the window that already holds it, so with several windows open the click lands on this session's one. When no window matches, a multi-root workspace for one, the click brings VS Code forward without choosing a window.
 
 Without `terminal-notifier` the notification still shows, through the built-in `osascript`. macOS files those notifications under Script Editor, so a click opens Script Editor and its file dialog. Install `terminal-notifier` (`brew install terminal-notifier`, or run the installer again) to fix that.
 
