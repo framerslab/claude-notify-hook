@@ -85,8 +85,8 @@ if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ "${CLAUDE_NOTIFY_SKIP_BREW:-0}"
   # written into the settings file so the hook finds it.
   if [ -n "$tn" ]; then
     tn_dir="$(dirname "$tn")"
-    case " /opt/homebrew/bin /usr/local/bin " in
-      *" $tn_dir "*) ;;
+    case "$tn_dir" in
+      /opt/homebrew/bin|/usr/local/bin) ;;
       *) conf="$claude_dir/notify-waiting.conf"
          if ! grep -q '^NOTIFY_TN_DIRS=' "$conf" 2>/dev/null; then
            printf 'NOTIFY_TN_DIRS="%s /opt/homebrew/bin /usr/local/bin"\n' "$tn_dir" >> "$conf"
