@@ -24,6 +24,8 @@
 #                           macOS sets for every process an app starts, then from TERM_PROGRAM)
 #   NOTIFY_FOCUS_FOLDER=0   for VS Code, bring the app forward without asking it to focus the
 #                           window that holds the session's folder (default 1)
+#   NOTIFY_TN_DIRS="/opt/homebrew/bin /usr/local/bin"   folders searched for terminal-notifier when
+#                           it is not on the hook's PATH (default shown; empty: PATH only)
 #
 # Exit code and output are ignored by Claude Code for Notification hooks; this script never fails
 # the event. It writes nothing to the transcript.
@@ -114,11 +116,15 @@ as_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 # Quote one word for /bin/sh: wrap it in single quotes, each inner quote written as '\''.
 sh_quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
-# terminal-notifier on PATH, or where Homebrew puts it (a hook's PATH can be shorter than a shell's).
+# terminal-notifier on PATH, else in NOTIFY_TN_DIRS, Homebrew's bin folders by default (a hook's PATH
+# can be shorter than a shell's). An empty NOTIFY_TN_DIRS looks on PATH only.
+NOTIFY_TN_DIRS="${NOTIFY_TN_DIRS-/opt/homebrew/bin /usr/local/bin}"
 find_terminal_notifier() {
-  local c
-  for c in "$(command -v terminal-notifier 2>/dev/null)" /opt/homebrew/bin/terminal-notifier /usr/local/bin/terminal-notifier; do
-    [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }
+  local c d
+  c="$(command -v terminal-notifier 2>/dev/null)"
+  [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }
+  for d in $NOTIFY_TN_DIRS; do
+    [ -x "$d/terminal-notifier" ] && { printf '%s' "$d/terminal-notifier"; return 0; }
   done
   return 1
 }

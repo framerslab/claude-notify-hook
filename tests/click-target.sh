@@ -77,6 +77,7 @@ run "$work/nofocus" __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_FOCUS_FOLDE
 check "$work/nofocus" nofocus
 
 rm "$bin/terminal-notifier"
-run "$work/fallback" __CFBundleIdentifier=com.microsoft.VSCode
+# NOTIFY_TN_DIRS empty: the runner may carry a terminal-notifier of its own in /usr/local/bin.
+run "$work/fallback" __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_TN_DIRS=
 check "$work/fallback" fallback
 echo "all click-target checks passed"
