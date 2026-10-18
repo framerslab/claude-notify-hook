@@ -22,7 +22,11 @@ run() {
   rm -f "$cap"
   payload "$dir" 'Claude needs your "permission" to run: a\b' | env -i HOME="$work/home" CLAUDE_NOTIFY_CONF=/nonexistent PATH="$bin:/usr/bin:/bin" CAPTURE="$cap" "$@" bash "$here/notify-waiting.sh"
   for _ in $(seq 1 50); do [ -s "$cap" ] && return 0; sleep 0.1; done
-  echo "FAIL: no notifier call captured in $cap"; exit 1
+  echo "FAIL: no notifier call captured in $cap; the hook's trace follows"
+  ls -la "$bin" /opt/homebrew/bin/terminal-notifier /usr/local/bin/terminal-notifier 2>&1 || true
+  payload "$dir" 'trace' | env -i HOME="$work/home" CLAUDE_NOTIFY_CONF=/nonexistent PATH="$bin:/usr/bin:/bin" CAPTURE="$cap" "$@" bash -x "$here/notify-waiting.sh" 2>&1 | tail -n 40
+  sleep 2; ls -la "$(dirname "$cap")"
+  exit 1
 }
 
 check() { python3 - "$@" <<'PY'
