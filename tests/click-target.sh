@@ -90,9 +90,12 @@ run "$work/ext" VSCODE_PID=123 __CFBundleIdentifier=com.microsoft.VSCode
 check "$work/ext" focus com.microsoft.VSCode
 opened "$work/ext" "$win"
 
-# VS Code started from Terminal with the code command inherits Terminal's bundle id; VS Code still wins.
+# VS Code started from Terminal with the code command inherits Terminal's bundle id and its TERM_PROGRAM;
+# VS Code still wins.
 run "$work/ext-inherited" VSCODE_PID=123 __CFBundleIdentifier=com.apple.Terminal
 check "$work/ext-inherited" focus com.microsoft.VSCode
+run "$work/ext-inherited-term" VSCODE_PID=123 TERM_PROGRAM=Apple_Terminal __CFBundleIdentifier=com.apple.Terminal
+check "$work/ext-inherited-term" focus com.microsoft.VSCode
 run "$work/integrated" TERM_PROGRAM=vscode __CFBundleIdentifier=com.apple.Terminal
 check "$work/integrated" focus com.microsoft.VSCode
 
