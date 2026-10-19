@@ -20,8 +20,8 @@
 #   NOTIFY_SOUND=Glass      macOS sound name (default Glass); empty for silent
 #   NOTIFY_QUIET_TYPES="auth_success quota_auto_resume_fired"   types to skip (default below)
 #   NOTIFY_ACTIVATE=com.microsoft.VSCode   bundle id terminal-notifier brings forward on click
-#                           (default: the app the session runs in, from __CFBundleIdentifier, which
-#                           macOS sets for every process an app starts, then from TERM_PROGRAM)
+#                           (default: the app the session runs in, from TERM_PROGRAM, then
+#                           VSCODE_PID for the VS Code extension, then __CFBundleIdentifier)
 #   NOTIFY_FOCUS_FOLDER=0   for VS Code, bring the app forward without asking it to focus the
 #                           window that holds the session's folder (default 1)
 #   NOTIFY_TN_DIRS="/opt/homebrew/bin:/usr/local/bin"   folders searched for terminal-notifier when
