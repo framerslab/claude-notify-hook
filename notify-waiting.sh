@@ -20,8 +20,9 @@
 #   NOTIFY_SOUND=Glass      macOS sound name (default Glass); empty for silent
 #   NOTIFY_QUIET_TYPES="auth_success quota_auto_resume_fired"   types to skip (default below)
 #   NOTIFY_ACTIVATE=com.microsoft.VSCode   bundle id terminal-notifier brings forward on click
-#                           (default: the app the session runs in, from __CFBundleIdentifier, which
-#                           macOS sets for every process an app starts, then from TERM_PROGRAM)
+#                           (default: the app the session runs in: VS Code when TERM_PROGRAM is
+#                           vscode or VSCODE_PID is set, then the terminal TERM_PROGRAM names,
+#                           then __CFBundleIdentifier)
 #   NOTIFY_FOCUS_FOLDER=0   for VS Code, bring the app forward without asking it to focus the
 #                           window that holds the session's folder (default 1)
 #   NOTIFY_TN_DIRS="/opt/homebrew/bin:/usr/local/bin"   folders searched for terminal-notifier when
@@ -99,22 +100,26 @@ body="${message:-$meaning}"
 body="$(printf '%s' "$body" | tr '\n' ' ' | cut -c1-200)"
 title="Claude Code: ${project:-session}"
 
-# Where a click should land: the app this session runs in. TERM_PROGRAM names the terminal a CLI
-# session runs in (VS Code's integrated terminal says vscode). The VS Code extension sets none, and
-# VSCODE_PID marks it. __CFBundleIdentifier, which macOS sets for every process an app starts, covers
-# the rest (the desktop app); it comes last because a process started from a terminal inherits it.
+# Where a click should land: the app this session runs in. VS Code first: its integrated terminal sets
+# TERM_PROGRAM=vscode, and the extension sets no TERM_PROGRAM of its own but has VSCODE_PID. VS Code
+# started with the code command from a terminal passes that terminal's environment to the extension,
+# TERM_PROGRAM included, so VSCODE_PID outranks the other terminals' names. Then TERM_PROGRAM names the
+# terminal a CLI session runs in. __CFBundleIdentifier, which macOS sets for every process an app
+# starts, covers the rest (the desktop app); it comes last because a process started from a terminal
+# inherits it.
 vscode_id() { case "${__CFBundleIdentifier:-}" in com.microsoft.VSCode*) printf '%s' "$__CFBundleIdentifier" ;; *) printf 'com.microsoft.VSCode' ;; esac; }
 activate="${NOTIFY_ACTIVATE:-}"
+if [ -z "$activate" ] && { [ "${TERM_PROGRAM:-}" = vscode ] || [ -n "${VSCODE_PID:-}" ]; }; then
+  activate="$(vscode_id)"
+fi
 if [ -z "$activate" ]; then
   case "${TERM_PROGRAM:-}" in
-    vscode)      activate="$(vscode_id)" ;;
     iTerm.app)   activate="com.googlecode.iterm2" ;;
     Apple_Terminal) activate="com.apple.Terminal" ;;
     ghostty)     activate="com.mitchellh.ghostty" ;;
     WarpTerminal) activate="dev.warp.Warp-Stable" ;;
   esac
 fi
-[ -z "$activate" ] && [ -n "${VSCODE_PID:-}" ] && activate="$(vscode_id)"
 [ -z "$activate" ] && activate="${__CFBundleIdentifier:-}"
 
 # Escape for the AppleScript string literal: backslashes and double quotes.
