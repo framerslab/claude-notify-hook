@@ -2,7 +2,7 @@
 
 A desktop notification whenever Claude Code is waiting on you: for a permission, for your next message, for an answer to a tool's question, or because a background agent needs you or has finished.
 
-It is one shell script wired as a Claude Code hook. It runs wherever Claude Code runs with your settings: the terminal, the VS Code extension and the desktop app. No dependencies: macOS uses `terminal-notifier` when installed (a click brings the editor or terminal forward), otherwise the built-in `osascript`; Linux uses `notify-send`; Windows (Git Bash or WSL) shows a PowerShell toast.
+It is one shell script wired as a Claude Code hook. It runs wherever Claude Code runs with your settings: the terminal, the VS Code extension and the desktop app. macOS uses `terminal-notifier`, which the installer adds with Homebrew; Linux uses `notify-send`; Windows (Git Bash or WSL) shows a PowerShell toast.
 
 ## Install
 
@@ -11,7 +11,7 @@ git clone https://github.com/framerslab/claude-notify-hook.git
 bash claude-notify-hook/install.sh
 ```
 
-The installer copies `notify-waiting.sh` to `~/.claude/hooks/` and merges two hooks into `~/.claude/settings.json`, which applies to every project on the machine:
+The installer copies `notify-waiting.sh` to `~/.claude/hooks/`, installs `terminal-notifier` with Homebrew on macOS when it is missing (set `CLAUDE_NOTIFY_SKIP_BREW=1` to skip that), and merges two hooks into `~/.claude/settings.json`, which applies to every project on the machine:
 
 | Event | Matcher | What it means |
 |---|---|---|
@@ -24,6 +24,14 @@ New sessions pick the hooks up at once. In a session that is already open, run `
 
 Title `Claude Code: <project folder>`, body the event's own message (for example `Claude needs your permission to run: git push`) or a short line saying what it waits for.
 
+## What a click does on macOS
+
+With `terminal-notifier`, a click brings the app the session runs in to the front: VS Code, the Claude desktop app, Terminal or iTerm. The hook reads the app from `__CFBundleIdentifier`, which macOS sets for every process an app starts, and falls back to `TERM_PROGRAM`. For VS Code it also finds the open window that holds the session's folder, or its nearest parent folder, in VS Code's saved window state (`windowsState` in `~/Library/Application Support/Code/User/globalStorage/storage.json`) and asks VS Code to open that window's folder. VS Code answers by focusing the window that already holds it, so with several windows open the click lands on this session's one. When no window matches, a multi-root workspace for one, the click brings VS Code forward without choosing a window. VS Code gives an outside process no way to name a window, so when two windows hold the same folder, VS Code chooses which of them comes forward.
+
+Without `terminal-notifier` the notification still shows, through the built-in `osascript`. macOS files those notifications under Script Editor, so a click opens Script Editor and its file dialog. Install `terminal-notifier` (`brew install terminal-notifier`, or run the installer again) to fix that.
+
+macOS asks once whether `terminal-notifier` may show notifications. If none appear, run `terminal-notifier -diagnose`.
+
 ## Settings
 
 Optional file `~/.claude/notify-waiting.conf`, shell syntax:
@@ -32,7 +40,9 @@ Optional file `~/.claude/notify-waiting.conf`, shell syntax:
 NOTIFY_ON_STOP=1                 # also notify the moment a turn ends (default off)
 NOTIFY_SOUND=Glass               # macOS sound name; empty for silent
 NOTIFY_QUIET_TYPES="auth_success quota_auto_resume_fired"   # notification types to skip
-NOTIFY_ACTIVATE=com.microsoft.VSCode   # app terminal-notifier brings forward on click
+NOTIFY_ACTIVATE=com.microsoft.VSCode   # app a click brings to the front (default: the app the session runs in)
+NOTIFY_FOCUS_FOLDER=0            # VS Code: bring it forward without focusing the session's window (default 1)
+NOTIFY_TN_DIRS="/opt/homebrew/bin:/usr/local/bin"   # where to find terminal-notifier off the hook's PATH, colon-separated
 ```
 
 `NOTIFY_ON_STOP` is off by default because `idle_prompt` already fires 60 seconds after a turn ends if you have not typed, and with several sessions running at once a notification on every finished turn is noise. Turn it on when you run one session and want to know the moment it finishes.
