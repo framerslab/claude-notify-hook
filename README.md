@@ -42,6 +42,7 @@ NOTIFY_SOUND=Glass               # macOS sound name; empty for silent
 NOTIFY_QUIET_TYPES="auth_success quota_auto_resume_fired"   # notification types to skip
 NOTIFY_ACTIVATE=com.microsoft.VSCode   # app a click brings to the front (default: the app the session runs in)
 NOTIFY_FOCUS_FOLDER=0            # VS Code: bring it forward without focusing the session's window (default 1)
+NOTIFY_TN_DIRS="/opt/homebrew/bin:/usr/local/bin"   # where to find terminal-notifier off the hook's PATH, colon-separated
 ```
 
 `NOTIFY_ON_STOP` is off by default because `idle_prompt` already fires 60 seconds after a turn ends if you have not typed, and with several sessions running at once a notification on every finished turn is noise. Turn it on when you run one session and want to know the moment it finishes.

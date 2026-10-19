@@ -89,7 +89,8 @@ if [ "$(uname -s 2>/dev/null)" = "Darwin" ] && [ "${CLAUDE_NOTIFY_SKIP_BREW:-0}"
       /opt/homebrew/bin|/usr/local/bin) ;;
       *) conf="$claude_dir/notify-waiting.conf"
          if ! grep -q '^NOTIFY_TN_DIRS=' "$conf" 2>/dev/null; then
-           printf 'NOTIFY_TN_DIRS="%s /opt/homebrew/bin /usr/local/bin"\n' "$tn_dir" >> "$conf"
+           # %q quotes the value for the shell that sources the file; colons separate the folders.
+           printf 'NOTIFY_TN_DIRS=%q\n' "$tn_dir:/opt/homebrew/bin:/usr/local/bin" >> "$conf"
            echo "terminal-notifier is in $tn_dir, outside the hook's default folders: added NOTIFY_TN_DIRS to $conf"
          fi ;;
     esac

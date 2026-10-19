@@ -119,7 +119,12 @@ check "$work/iterm" nofocus com.googlecode.iterm2
 run "$work/desktop" __CFBundleIdentifier=com.anthropic.claudefordesktop
 check "$work/desktop" nofocus com.anthropic.claudefordesktop
 
-rm "$bin/terminal-notifier"
+# terminal-notifier off PATH, in a folder whose name has a space, named by NOTIFY_TN_DIRS (colon list).
+tnd="$work/tn dir with space"; mkdir -p "$tnd"; mv "$bin/terminal-notifier" "$tnd/terminal-notifier"
+run "$work/tndirs" VSCODE_PID=123 __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_TN_DIRS="/nonexistent:$tnd"
+check "$work/tndirs" nofocus com.microsoft.VSCode
+
+rm "$tnd/terminal-notifier"
 # NOTIFY_TN_DIRS empty: the runner may carry a terminal-notifier of its own in /usr/local/bin.
 run "$work/fallback" VSCODE_PID=123 __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_TN_DIRS=
 check "$work/fallback" fallback
