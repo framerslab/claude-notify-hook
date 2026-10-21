@@ -57,6 +57,10 @@ def fail(msg):
 if case == 'fallback':
     want = 'display notification "Claude needs your \\"permission\\" to run: a\\\\b" with title "Claude Code: sub here" sound name "Glass"'
     if args != ['-e', want]: fail('osascript script differs from ' + repr(want))
+elif case == 'denied':
+    head = 'display notification "Claude needs your \\"permission\\" to run: a\\\\b (Allow terminal-notifier in System Settings > Notifications'
+    if len(args) != 2 or args[0] != '-e' or not args[1].startswith(head): fail('osascript fallback lacks the System Settings hint after the message')
+    if not args[1].endswith('" with title "Claude Code: sub here" sound name "Glass"'): fail('osascript fallback lost its title or sound')
 else:
     if val('-activate') != want_app: fail(f'-activate is not {want_app}')
     if val('-title') != 'Claude Code: sub here': fail('title')
@@ -128,6 +132,16 @@ run "$work/tndirs" VSCODE_PID=123 __CFBundleIdentifier=com.microsoft.VSCode NOTI
 check "$work/tndirs" nofocus com.microsoft.VSCode
 
 rm "$tnd/terminal-notifier"
+
+# terminal-notifier present but refused by macOS (exit 3: notifications turned off for it): it is tried first, then
+# the osascript notification shows instead and names the fix, so the person learns why a click opens Script Editor.
+printf '#!/bin/sh\nfor a in "$@"; do printf "%%s\\0" "$a"; done > "$CAPTURE.tn"; exit 3\n' > "$bin/terminal-notifier"
+chmod +x "$bin/terminal-notifier"
+run "$work/denied" VSCODE_PID=123 __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_TN_DIRS=
+check "$work/denied" denied
+[ -s "$work/denied.tn" ] || { echo "FAIL [denied]: terminal-notifier was not tried before the fallback"; exit 1; }
+rm "$bin/terminal-notifier"
+
 # NOTIFY_TN_DIRS empty: the runner may carry a terminal-notifier of its own in /usr/local/bin.
 run "$work/fallback" VSCODE_PID=123 __CFBundleIdentifier=com.microsoft.VSCode NOTIFY_TN_DIRS=
 check "$work/fallback" fallback

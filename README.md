@@ -30,7 +30,7 @@ With `terminal-notifier`, a click brings the app the session runs in to the fron
 
 Without `terminal-notifier` the notification still shows, through the built-in `osascript`. macOS files those notifications under Script Editor, so a click opens Script Editor and its file dialog. Install `terminal-notifier` (`brew install terminal-notifier`, or run the installer again) to fix that.
 
-macOS asks once whether `terminal-notifier` may show notifications. If none appear, run `terminal-notifier -diagnose`.
+macOS asks once whether `terminal-notifier` may show notifications. When that permission is off (the answer was Don't Allow, or notifications for it were switched off later), `terminal-notifier` exits 3 and shows nothing, so the hook shows the `osascript` notification instead with the fix in its body: a click on that one opens Script Editor, which is how the problem looks from the outside. The fix is the switch in System Settings > Notifications > terminal-notifier (Allow Notifications); `terminal-notifier -diagnose` prints `authorization denied` while it is off, and `tccutil reset UserNotification fr.julienxx.oss.terminal-notifier`, which should make macOS ask again, can fail on recent macOS, so the switch is the dependable way. Once it is on, clicks land on the session's app again with no restart.
 
 ## Settings
 

@@ -193,8 +193,17 @@ notify_macos() {
       com.microsoft.VSCodeInsiders) folder="$(vscode_window_folder "Code - Insiders")" ;;
     esac
     [ -n "$folder" ] && set -- "$@" -execute "/usr/bin/open -b $(sh_quote "$activate") $(sh_quote "$folder")"
-    "$tn" "$@" >/dev/null 2>&1 &
-    return 0
+    # Run it to its exit code: 0 means the notification showed and a click will land. 3 means macOS has
+    # notifications turned off for terminal-notifier (`terminal-notifier -diagnose` prints "authorization
+    # denied"), so nothing showed; the osascript notification below shows instead, with the fix in its body,
+    # since a click on it opens Script Editor and the person would otherwise never learn why. Any other
+    # failure falls through to osascript as well.
+    local rc=0
+    "$tn" "$@" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 0 ] && return 0
+    if [ "$rc" -eq 3 ]; then
+      body="$body (Allow terminal-notifier in System Settings > Notifications; until then clicks open Script Editor)"
+    fi
   fi
   local t b s=""
   t="$(as_escape "$title")"; b="$(as_escape "$body")"
